@@ -1,0 +1,795 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Offline QR Code Generator</title>
+    <style>
+        :root {
+            --primary: #4F46E5;
+            --primary-hover: #4338CA;
+            --bg: #F3F4F6;
+            --card-bg: #FFFFFF;
+            --text: #1F2937;
+            --text-muted: #6B7280;
+            --border: #E5E7EB;
+            --radius: 16px;
+            --font: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: var(--font);
+            background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+            color: var(--text);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            background-color: var(--card-bg);
+            border-radius: var(--radius);
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.08);
+            width: 100%;
+            max-width: 440px;
+            padding: 40px 30px;
+            text-align: center;
+        }
+
+        h1 {
+            font-size: 1.5rem;
+            font-weight: 700;
+            margin-bottom: 8px;
+            color: var(--text);
+        }
+
+        .subtitle {
+            font-size: 0.9rem;
+            color: var(--text-muted);
+            margin-bottom: 24px;
+        }
+
+        .input-group {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            margin-bottom: 24px;
+        }
+
+        input[type="text"] {
+            width: 100%;
+            padding: 14px 16px;
+            border: 2px solid var(--border);
+            border-radius: 10px;
+            font-size: 1rem;
+            outline: none;
+            transition: border-color 0.3s, box-shadow 0.3s;
+            font-family: var(--font);
+        }
+
+        input[type="text"]:focus {
+            border-color: var(--primary);
+            box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.15);
+        }
+
+        button {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            background-color: var(--primary);
+            color: white;
+            border: none;
+            padding: 14px 20px;
+            border-radius: 10px;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            font-family: var(--font);
+            width: 100%;
+        }
+
+        button:hover {
+            background-color: var(--primary-hover);
+            transform: translateY(-1px);
+        }
+
+        button:active {
+            transform: translateY(1px);
+        }
+
+        .btn-outline {
+            background-color: transparent;
+            color: var(--primary);
+            border: 2px solid var(--primary);
+        }
+
+        .btn-outline:hover {
+            background-color: rgba(79, 70, 229, 0.05);
+            color: var(--primary-hover);
+            border-color: var(--primary-hover);
+        }
+
+        #qrOutput {
+            display: none;
+            animation: fadeIn 0.4s ease;
+        }
+
+        #qrOutput.visible {
+            display: block;
+        }
+
+        #svgContainer {
+            margin: 0 auto 24px auto;
+            padding: 20px;
+            background: white;
+            border-radius: 12px;
+            box-shadow: inset 0 0 10px rgba(0,0,0,0.05);
+            border: 1px solid var(--border);
+            width: 100%;
+            max-width: 250px;
+            aspect-ratio: 1 / 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        #svgContainer svg {
+            width: 100%;
+            height: 100%;
+            display: block;
+        }
+
+        .actions {
+            display: flex;
+            gap: 12px;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        /* Toast Notification Styles */
+        .toast {
+            position: fixed;
+            bottom: 30px;
+            left: 50%;
+            transform: translateX(-50%) translateY(20px);
+            background-color: var(--text);
+            color: white;
+            padding: 12px 24px;
+            border-radius: 30px;
+            font-size: 0.95rem;
+            font-weight: 500;
+            opacity: 0;
+            pointer-events: none;
+            transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            z-index: 1000;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.2);
+        }
+
+        .toast.show {
+            opacity: 1;
+            transform: translateX(-50%) translateY(0);
+        }
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        <h1>QR Code Generator</h1>
+        <p class="subtitle">100% Offline &middot; No external dependencies</p>
+        
+        <div class="input-group">
+            <input type="text" id="urlInput" placeholder="Enter URL or text to encode..." autocomplete="off" />
+            <button id="generateBtn">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3h6v6H3z"/><path d="M15 3h6v6h-6z"/><path d="M3 15h6v6H3z"/><path d="M15 15h6v6h-6z"/><path d="M9 3v6"/><path d="M15 9v-6"/><path d="M9 21v-6"/><path d="M15 15v6"/><path d="M3 9h6"/><path d="M15 9h6"/><path d="M3 15h6"/><path d="M15 15h6"/></svg>
+                Generate QR Code
+            </button>
+        </div>
+
+        <div id="qrOutput">
+            <div id="svgContainer"></div>
+            <div class="actions">
+                <button id="downloadBtn" class="btn-outline">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                    Download SVG
+                </button>
+                <button id="copyBtn" class="btn-outline">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+                    Copy SVG
+                </button>
+            </div>
+            <div class="actions" style="margin-top: 12px;">
+                <button id="downloadPngBtn" class="btn-outline">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                    Download PNG
+                </button>
+                <button id="copyPngBtn" class="btn-outline">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+                    Copy PNG
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast Notification -->
+    <div id="toast" class="toast"></div>
+
+    <script>
+        // --- BEGIN FULL QR CODE LIBRARY ---
+        // A robust, standard-compliant QR Code generator (ES6)
+        // Based on Project Nayuki's qrcodegen (https://www.nayuki.io/page/qr-code-generator-library)
+        const qrcodegen = (function() {
+            class QrCode {
+                constructor(version, errorCorrectionLevel, dataCodewords, msk) {
+                    this.version = version;
+                    this.errorCorrectionLevel = errorCorrectionLevel;
+                    this.size = version * 4 + 17;
+                    this.modules = [];
+                    this.isFunction = [];
+                    for (let i = 0; i < this.size; i++) {
+                        this.modules.push(new Array(this.size).fill(false));
+                        this.isFunction.push(new Array(this.size).fill(false));
+                    }
+                    this.drawFunctionPatterns();
+                    const allCodewords = this.addEccAndInterleave(dataCodewords);
+                    this.drawCodewords(allCodewords);
+                    this.mask = this.handleConstructorMasking(msk);
+                    this.isFunction = [];
+                }
+                
+                getModule(x, y) {
+                    return (0 <= x && x < this.size && 0 <= y && y < this.size) && this.modules[y][x];
+                }
+
+                drawFunctionPatterns() {
+                    for (let i = 0; i < this.size; i++) {
+                        this.setFunctionModule(6, i, i % 2 == 0);
+                        this.setFunctionModule(i, 6, i % 2 == 0);
+                    }
+                    this.drawFinderPattern(3, 3);
+                    this.drawFinderPattern(this.size - 4, 3);
+                    this.drawFinderPattern(3, this.size - 4);
+                    const alignPatPos = this.getAlignmentPatternPositions();
+                    const numAlign = alignPatPos.length;
+                    for (let i = 0; i < numAlign; i++) {
+                        for (let j = 0; j < numAlign; j++) {
+                            if (!((i == 0 && j == 0) || (i == 0 && j == numAlign - 1) || (i == numAlign - 1 && j == 0)))
+                                this.drawAlignmentPattern(alignPatPos[i], alignPatPos[j]);
+                        }
+                    }
+                    this.drawFormatBits(0);
+                    this.drawVersion();
+                }
+
+                drawFormatBits(mask) {
+                    const data = this.errorCorrectionLevel.formatBits << 3 | mask;
+                    let rem = data;
+                    for (let i = 0; i < 10; i++) rem = (rem << 1) ^ ((rem >>> 9) * 0x537);
+                    const bits = (data << 10 | rem) ^ 0x5412;
+                    for (let i = 0; i <= 5; i++) this.setFunctionModule(8, i, getBit(bits, i));
+                    this.setFunctionModule(8, 7, getBit(bits, 6));
+                    this.setFunctionModule(8, 8, getBit(bits, 7));
+                    this.setFunctionModule(7, 8, getBit(bits, 8));
+                    for (let i = 9; i < 15; i++) this.setFunctionModule(14 - i, 8, getBit(bits, i));
+                    for (let i = 0; i < 8; i++) this.setFunctionModule(this.size - 1 - i, 8, getBit(bits, i));
+                    for (let i = 8; i < 15; i++) this.setFunctionModule(8, this.size - 15 + i, getBit(bits, i));
+                    this.setFunctionModule(8, this.size - 8, true);
+                }
+
+                drawVersion() {
+                    if (this.version < 7) return;
+                    let rem = this.version;
+                    for (let i = 0; i < 12; i++) rem = (rem << 1) ^ ((rem >>> 11) * 0x1F25);
+                    const bits = this.version << 12 | rem;
+                    for (let i = 0; i < 18; i++) {
+                        const color = getBit(bits, i);
+                        const a = this.size - 11 + i % 3;
+                        const b = Math.floor(i / 3);
+                        this.setFunctionModule(a, b, color);
+                        this.setFunctionModule(b, a, color);
+                    }
+                }
+
+                drawFinderPattern(x, y) {
+                    for (let dy = -4; dy <= 4; dy++) {
+                        for (let dx = -4; dx <= 4; dx++) {
+                            const dist = Math.max(Math.abs(dx), Math.abs(dy));
+                            const xx = x + dx, yy = y + dy;
+                            if (0 <= xx && xx < this.size && 0 <= yy && yy < this.size)
+                                this.setFunctionModule(xx, yy, dist != 2 && dist != 4);
+                        }
+                    }
+                }
+
+                drawAlignmentPattern(x, y) {
+                    for (let dy = -2; dy <= 2; dy++) {
+                        for (let dx = -2; dx <= 2; dx++)
+                            this.setFunctionModule(x + dx, y + dy, Math.max(Math.abs(dx), Math.abs(dy)) != 1);
+                    }
+                }
+
+                setFunctionModule(x, y, isDark) {
+                    this.modules[y][x] = isDark;
+                    this.isFunction[y][x] = true;
+                }
+
+                addEccAndInterleave(data) {
+                    const ver = this.version;
+                    const ecl = this.errorCorrectionLevel;
+                    if (data.length != QrCode.getNumDataCodewords(ver, ecl)) throw new Error("Invalid argument");
+                    const numBlocks = QrCode.NUM_ERROR_CORRECTION_BLOCKS[ecl.ordinal][ver];
+                    const blockEccLen = QrCode.ECC_CODEWORDS_PER_BLOCK[ecl.ordinal][ver];
+                    const rawCodewords = Math.floor(QrCode.getNumRawDataModules(ver) / 8);
+                    const numShortBlocks = numBlocks - rawCodewords % numBlocks;
+                    const shortBlockLen = Math.floor(rawCodewords / numBlocks);
+                    const blocks = [];
+                    const rsDiv = QrCode.reedSolomonComputeDivisor(blockEccLen);
+                    for (let i = 0, k = 0; i < numBlocks; i++) {
+                        let dat = data.slice(k, k + shortBlockLen - blockEccLen + (i < numShortBlocks ? 0 : 1));
+                        k += dat.length;
+                        const ecc = QrCode.reedSolomonComputeRemainder(dat, rsDiv);
+                        if (i < numShortBlocks) dat.push(0);
+                        blocks.push(dat.concat(ecc));
+                    }
+                    const result = [];
+                    for (let i = 0; i < blocks[0].length; i++) {
+                        for (let j = 0; j < blocks.length; j++) {
+                            if (i != shortBlockLen - blockEccLen || j >= numShortBlocks)
+                                result.push(blocks[j][i]);
+                        }
+                    }
+                    return result;
+                }
+
+                drawCodewords(data) {
+                    let i = 0;
+                    for (let right = this.size - 1; right >= 1; right -= 2) {
+                        if (right == 6) right = 5;
+                        for (let vert = 0; vert < this.size; vert++) {
+                            for (let j = 0; j < 2; j++) {
+                                const x = right - j;
+                                const upward = ((right + 1) & 2) == 0;
+                                const y = upward ? this.size - 1 - vert : vert;
+                                if (!this.isFunction[y][x] && i < data.length * 8) {
+                                    this.modules[y][x] = getBit(data[i >>> 3], 7 - (i & 7));
+                                    i++;
+                                }
+                            }
+                        }
+                    }
+                }
+
+                applyMask(mask) {
+                    for (let y = 0; y < this.size; y++) {
+                        for (let x = 0; x < this.size; x++) {
+                            let invert = false;
+                            switch (mask) {
+                                case 0: invert = (x + y) % 2 == 0; break;
+                                case 1: invert = y % 2 == 0; break;
+                                case 2: invert = x % 3 == 0; break;
+                                case 3: invert = (x + y) % 3 == 0; break;
+                                case 4: invert = (Math.floor(x / 3) + Math.floor(y / 2)) % 2 == 0; break;
+                                case 5: invert = x * y % 2 + x * y % 3 == 0; break;
+                                case 6: invert = (x * y % 2 + x * y % 3) % 2 == 0; break;
+                                case 7: invert = ((x + y) % 2 + x * y % 3) % 2 == 0; break;
+                            }
+                            if (!this.isFunction[y][x] && invert) this.modules[y][x] = !this.modules[y][x];
+                        }
+                    }
+                }
+
+                handleConstructorMasking(mask) {
+                    if (mask == -1) {
+                        let minPenalty = 1000000000;
+                        for (let i = 0; i < 8; i++) {
+                            this.applyMask(i);
+                            this.drawFormatBits(i);
+                            const penalty = this.getPenaltyScore();
+                            if (penalty < minPenalty) { mask = i; minPenalty = penalty; }
+                            this.applyMask(i);
+                        }
+                    }
+                    this.applyMask(mask);
+                    this.drawFormatBits(mask);
+                    return mask;
+                }
+
+                getPenaltyScore() {
+                    let result = 0;
+                    for (let y = 0; y < this.size; y++) {
+                        let runColor = false, runX = 0;
+                        let runHistory = [0,0,0,0,0,0,0];
+                        for (let x = 0; x < this.size; x++) {
+                            if (this.modules[y][x] == runColor) { runX++; if (runX == 5) result += 3; else if (runX > 5) result++; }
+                            else { this.finderPenaltyAddHistory(runX, runHistory); if (!runColor) result += this.finderPenaltyCountPatterns(runHistory) * 40; runColor = this.modules[y][x]; runX = 1; }
+                        }
+                        result += this.finderPenaltyTerminateAndCount(runColor, runX, runHistory) * 40;
+                    }
+                    for (let x = 0; x < this.size; x++) {
+                        let runColor = false, runY = 0;
+                        let runHistory = [0,0,0,0,0,0,0];
+                        for (let y = 0; y < this.size; y++) {
+                            if (this.modules[y][x] == runColor) { runY++; if (runY == 5) result += 3; else if (runY > 5) result++; }
+                            else { this.finderPenaltyAddHistory(runY, runHistory); if (!runColor) result += this.finderPenaltyCountPatterns(runHistory) * 40; runColor = this.modules[y][x]; runY = 1; }
+                        }
+                        result += this.finderPenaltyTerminateAndCount(runColor, runY, runHistory) * 40;
+                    }
+                    for (let y = 0; y < this.size - 1; y++) {
+                        for (let x = 0; x < this.size - 1; x++) {
+                            let color = this.modules[y][x];
+                            if (color == this.modules[y][x + 1] && color == this.modules[y + 1][x] && color == this.modules[y + 1][x + 1]) result += 3;
+                        }
+                    }
+                    let dark = 0;
+                    for (const row of this.modules) dark = row.reduce((sum, color) => sum + (color ? 1 : 0), dark);
+                    const total = this.size * this.size;
+                    const k = Math.ceil(Math.abs(dark * 20 - total * 10) / total) - 1;
+                    result += k * 10;
+                    return result;
+                }
+
+                getAlignmentPatternPositions() {
+                    if (this.version == 1) return [];
+                    else {
+                        const numAlign = Math.floor(this.version / 7) + 2;
+                        const step = (this.version == 32) ? 26 : Math.ceil((this.version * 4 + 4) / (numAlign * 2 - 2)) * 2;
+                        const result = [6];
+                        for (let pos = this.size - 7; result.length < numAlign; pos -= step) result.splice(1, 0, pos);
+                        return result;
+                    }
+                }
+
+                static getNumRawDataModules(ver) {
+                    let result = (16 * ver + 128) * ver + 64;
+                    if (ver >= 2) {
+                        const numAlign = Math.floor(ver / 7) + 2;
+                        result -= (25 * numAlign - 10) * numAlign - 55;
+                        if (ver >= 7) result -= 36;
+                    }
+                    return result;
+                }
+                
+                static getNumDataCodewords(ver, ecl) {
+                    return Math.floor(QrCode.getNumRawDataModules(ver) / 8) - QrCode.ECC_CODEWORDS_PER_BLOCK[ecl.ordinal][ver] * QrCode.NUM_ERROR_CORRECTION_BLOCKS[ecl.ordinal][ver];
+                }
+
+                static reedSolomonComputeDivisor(degree) {
+                    const result = new Array(degree).fill(0);
+                    result[degree - 1] = 1;
+                    let root = 1;
+                    for (let i = 0; i < degree; i++) {
+                        for (let j = 0; j < result.length; j++) {
+                            result[j] = QrCode.reedSolomonMultiply(result[j], root);
+                            if (j + 1 < result.length) result[j] ^= result[j + 1];
+                        }
+                        root = QrCode.reedSolomonMultiply(root, 2);
+                    }
+                    return result;
+                }
+
+                static reedSolomonComputeRemainder(data, divisor) {
+                    const result = new Array(divisor.length).fill(0);
+                    for (const b of data) {
+                        const factor = b ^ result.shift();
+                        result.push(0);
+                        for (let i = 0; i < result.length; i++)
+                            result[i] ^= QrCode.reedSolomonMultiply(divisor[i], factor);
+                    }
+                    return result;
+                }
+
+                static reedSolomonMultiply(x, y) {
+                    let z = 0;
+                    for (let i = 7; i >= 0; i--) {
+                        z = (z << 1) ^ ((z >>> 7) * 0x11D);
+                        z ^= ((y >>> i) & 1) * x;
+                    }
+                    return z;
+                }
+
+                finderPenaltyCountPatterns(runHistory) {
+                    const n = runHistory[1];
+                    let core = n > 0 && runHistory[2] == n && runHistory[3] == n * 3 && runHistory[4] == n && runHistory[5] == n;
+                    return (core && runHistory[0] >= n * 4 && runHistory[6] >= n ? 1 : 0) + (core && runHistory[6] >= n * 4 && runHistory[0] >= n ? 1 : 0);
+                }
+
+                finderPenaltyTerminateAndCount(currentRunColor, currentRunLength, runHistory) {
+                    if (currentRunColor) { this.finderPenaltyAddHistory(currentRunLength, runHistory); currentRunLength = 0; }
+                    currentRunLength += this.size;
+                    this.finderPenaltyAddHistory(currentRunLength, runHistory);
+                    return this.finderPenaltyCountPatterns(runHistory);
+                }
+
+                finderPenaltyAddHistory(currentRunLength, runHistory) {
+                    runHistory.pop();
+                    runHistory.unshift(currentRunLength);
+                }
+
+                static encodeText(text, ecl) {
+                    const segs = qrcodegen.QrSegment.makeSegments(text);
+                    return QrCode.encodeSegments(segs, ecl, 1, 40, -1, true);
+                }
+
+                static encodeSegments(segs, ecl, minVersion, maxVersion, mask, boostEcl) {
+                    let version, dataUsedBits;
+                    for (version = minVersion; ; version++) {
+                        const dataCapacityBits = QrCode.getNumDataCodewords(version, ecl) * 8;
+                        const usedBits = QrSegment.getTotalBits(segs, version);
+                        if (usedBits <= dataCapacityBits) { dataUsedBits = usedBits; break; }
+                        if (version >= maxVersion) throw new Error("Data too long");
+                    }
+                    for (const newEcl of [QrCode.Ecc.MEDIUM, QrCode.Ecc.QUARTILE, QrCode.Ecc.HIGH]) {
+                        if (boostEcl && dataUsedBits <= QrCode.getNumDataCodewords(version, newEcl) * 8) ecl = newEcl;
+                    }
+                    let bb = [];
+                    for (const seg of segs) {
+                        appendBits(seg.mode.modeBits, 4, bb);
+                        appendBits(seg.numChars, seg.mode.numCharCountBits(version), bb);
+                        for (const b of seg.getData()) bb.push(b);
+                    }
+                    const dataCapacityBits = QrCode.getNumDataCodewords(version, ecl) * 8;
+                    appendBits(0, Math.min(4, dataCapacityBits - bb.length), bb);
+                    appendBits(0, (8 - bb.length % 8) % 8, bb);
+                    for (let padByte = 0xEC; bb.length < dataCapacityBits; padByte ^= 0xEC ^ 0x11)
+                        appendBits(padByte, 8, bb);
+                    let dataCodewords = [];
+                    while (dataCodewords.length * 8 < bb.length) dataCodewords.push(0);
+                    for (let i = 0; i < bb.length; i++) dataCodewords[i >>> 3] |= bb[i] << (7 - (i & 7));
+                    return new QrCode(version, ecl, dataCodewords, mask);
+                }
+            }
+            
+            QrCode.NUM_ERROR_CORRECTION_BLOCKS = [
+                [ 0, 1, 1, 1, 1, 1, 2, 2, 2, 2, 4,  4,  4,  4,  4,  5,  5,  5,  5,  5,  5,  6,  6,  6,  6,  8,  8,  8,  8,  8,  8,  8,  8,  8,  8,  8,  8,  8,  8,  8,  8 ],
+                [ 0, 1, 1, 1, 2, 2, 4, 4, 4, 5, 5,  5,  8,  9,  9, 10, 10, 11, 13, 14, 16, 17, 17, 18, 20, 21, 23, 25, 26, 28, 29, 31, 33, 35, 37, 38, 40, 43, 45, 47, 49 ],
+                [ 0, 1, 1, 2, 2, 4, 4, 6, 6, 8, 8,  8, 10, 12, 16, 12, 17, 16, 18, 21, 20, 23, 23, 25, 27, 29, 34, 34, 35, 38, 40, 43, 45, 48, 51, 53, 56, 59, 62, 65, 68 ],
+                [ 0, 1, 1, 2, 4, 4, 4, 5, 6, 8, 8, 11, 11, 16, 16, 18, 16, 19, 21, 25, 25, 25, 34, 30, 32, 35, 37, 40, 42, 45, 48, 51, 54, 57, 60, 63, 66, 70, 74, 77, 81 ]
+            ];
+            QrCode.ECC_CODEWORDS_PER_BLOCK = [
+                [ -1,  7, 10, 15, 20, 26, 18, 20, 24, 30, 18, 20, 24, 26, 30, 22, 24, 28, 30, 28, 28, 28, 28, 30, 30, 26, 28, 30, 30, 30, 30, 30, 30, 30, 30, 30, 30, 30, 30, 30, 30 ],
+                [ -1, 10, 16, 26, 18, 24, 16, 18, 22, 22, 26, 30, 22, 22, 24, 24, 28, 28, 26, 26, 26, 26, 28, 28, 28, 28, 28, 28, 28, 28, 28, 28, 28, 28, 28, 28, 28, 28, 28, 28, 28 ],
+                [ -1, 13, 22, 18, 26, 18, 24, 18, 22, 20, 24, 28, 26, 24, 20, 30, 24, 28, 28, 26, 30, 28, 30, 30, 30, 30, 28, 30, 30, 30, 30, 30, 30, 30, 30, 30, 30, 30, 30, 30, 30 ],
+                [ -1, 17, 28, 22, 16, 22, 28, 26, 26, 24, 28, 24, 28, 22, 28, 26, 30, 28, 30, 28, 30, 30, 24, 30, 30, 30, 30, 30, 30, 30, 30, 30, 30, 30, 30, 30, 30, 30, 30, 30, 30 ]
+            ];
+            
+            QrCode.Ecc = { LOW: {ordinal: 0, formatBits: 1}, MEDIUM: {ordinal: 1, formatBits: 0}, QUARTILE: {ordinal: 2, formatBits: 3}, HIGH: {ordinal: 3, formatBits: 2} };
+
+            class QrSegment {
+                constructor(mode, numChars, bitData) {
+                    this.mode = mode;
+                    this.numChars = numChars;
+                    this.bitData = bitData;
+                }
+                getData() { return this.bitData; }
+                
+                static makeSegments(text) {
+                    // For simplicity, we fallback to UTF-8 Byte Mode which safely covers all URLs/Text
+                    const s = unescape(encodeURIComponent(text));
+                    let bb = [];
+                    for (let i = 0; i < s.length; i++) appendBits(s.charCodeAt(i), 8, bb);
+                    return [new QrSegment(QrSegment.Mode.BYTE, s.length, bb)];
+                }
+                
+                static getTotalBits(segs, version) {
+                    let result = 0;
+                    for (const seg of segs) {
+                        const ccbits = seg.mode.numCharCountBits(version);
+                        if (seg.numChars >= (1 << ccbits)) return Infinity;
+                        result += 4 + ccbits + seg.bitData.length;
+                    }
+                    return result;
+                }
+            }
+            
+            QrSegment.Mode = { BYTE: { modeBits: 4, numCharCountBits: (ver) => ver <= 9 ? 8 : 16 } };
+
+            function getBit(x, i) { return ((x >>> i) & 1) != 0; }
+            function appendBits(val, len, bb) {
+                for (let i = len - 1; i >= 0; i--) bb.push((val >>> i) & 1);
+            }
+
+            return { QrCode, QrSegment };
+        })();
+        // --- END FULL QR CODE LIBRARY ---
+
+        // --- APPLICATION LOGIC ---
+        const urlInput = document.getElementById('urlInput');
+        const generateBtn = document.getElementById('generateBtn');
+        const qrOutput = document.getElementById('qrOutput');
+        const svgContainer = document.getElementById('svgContainer');
+        const downloadBtn = document.getElementById('downloadBtn');
+        const copyBtn = document.getElementById('copyBtn');
+        const downloadPngBtn = document.getElementById('downloadPngBtn');
+        const copyPngBtn = document.getElementById('copyPngBtn');
+        const toast = document.getElementById('toast');
+
+        let toastTimeout;
+
+        // Show Toast Notification
+        function showToast(msg) {
+            toast.textContent = msg;
+            toast.classList.add('show');
+            
+            clearTimeout(toastTimeout);
+            toastTimeout = setTimeout(() => {
+                toast.classList.remove('show');
+            }, 5000);
+        }
+
+        // Generate QR Code SVG String
+        function createQRSVG(text) {
+            // Encode the text into a real QrCode using MEDIUM error correction
+            const qr = qrcodegen.QrCode.encodeText(text, qrcodegen.QrCode.Ecc.MEDIUM);
+            const size = qr.size;
+            const margin = 4; // Standard quiet zone for true QR codes
+            const totalSize = size + (margin * 2);
+            const cellSize = 10;
+            const svgSize = totalSize * cellSize;
+
+            let svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${svgSize} ${svgSize}" width="100%" height="100%">`;
+            svg += `<rect width="100%" height="100%" fill="#ffffff" />`;
+
+            for (let r = 0; r < size; r++) {
+                for (let c = 0; c < size; c++) {
+                    if (qr.getModule(c, r)) {
+                        const x = (c + margin) * cellSize;
+                        const y = (r + margin) * cellSize;
+                        svg += `<rect x="${x}" y="${y}" width="${cellSize}" height="${cellSize}" fill="#000000" />`;
+                    }
+                }
+            }
+            svg += `</svg>`;
+            return svg;
+        }
+
+        // Handle Generate Button
+        generateBtn.addEventListener('click', () => {
+            const text = urlInput.value.trim();
+            if (!text) {
+                showToast('Please enter a URL or some text to encode.');
+                return;
+            }
+
+            const svgMarkup = createQRSVG(text);
+            svgContainer.innerHTML = svgMarkup;
+            qrOutput.classList.add('visible');
+        });
+
+        // Trigger generation on Enter key
+        urlInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                generateBtn.click();
+            }
+        });
+
+        // Handle Download SVG Button
+        downloadBtn.addEventListener('click', () => {
+            const svgContent = svgContainer.innerHTML;
+            if (!svgContent) return;
+
+            const blob = new Blob([svgContent], { type: 'image/svg+xml;charset=utf-8' });
+            const url = URL.createObjectURL(blob);
+            
+            const link = document.createElement('a');
+            link.href = url;
+            link.download = 'qrcode.svg';
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            URL.revokeObjectURL(url);
+        });
+
+        // Handle Copy SVG Button
+        copyBtn.addEventListener('click', () => {
+            const svgContent = svgContainer.innerHTML;
+            if (!svgContent) return;
+
+            // Fallback copy method compatible with sandboxed environments (iframes)
+            const textArea = document.createElement("textarea");
+            textArea.value = svgContent;
+            
+            // Move it off-screen
+            textArea.style.position = "absolute";
+            textArea.style.left = "-999999px";
+            
+            document.body.appendChild(textArea);
+            textArea.select();
+            
+            try {
+                const successful = document.execCommand('copy');
+                if (successful) {
+                    showToast("SVG Copied!");
+                } else {
+                    showToast("Failed to copy SVG code. Please try downloading instead.");
+                }
+            } catch (err) {
+                showToast("Clipboard API not supported in this environment.");
+            }
+            
+            document.body.removeChild(textArea);
+        });
+
+        // --- PNG CONVERSION HELPERS ---
+
+        // Helper to render SVG string to a high-res Canvas
+        function svgToCanvas(svgString, callback) {
+            const canvas = document.createElement('canvas');
+            // High resolution for clear PNG
+            canvas.width = 1024;
+            canvas.height = 1024;
+            const ctx = canvas.getContext('2d');
+            const img = new Image();
+            
+            // Ensure namespace exists just in case innerHTML stripped it
+            if (!svgString.includes('xmlns=')) {
+                svgString = svgString.replace('<svg', '<svg xmlns="http://www.w3.org/2000/svg"');
+            }
+
+            const svgBlob = new Blob([svgString], { type: 'image/svg+xml;charset=utf-8' });
+            const url = URL.createObjectURL(svgBlob);
+
+            img.onload = function() {
+                // Ensure a white background (in case of transparency issues)
+                ctx.fillStyle = '#ffffff';
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+                ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+                URL.revokeObjectURL(url);
+                callback(canvas);
+            };
+            img.src = url;
+        }
+
+        // Handle Download PNG Button
+        downloadPngBtn.addEventListener('click', () => {
+            const svgContent = svgContainer.innerHTML;
+            if (!svgContent) return;
+
+            svgToCanvas(svgContent, (canvas) => {
+                const url = canvas.toDataURL('image/png');
+                const link = document.createElement('a');
+                link.href = url;
+                link.download = 'qrcode.png';
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+            });
+        });
+
+        // Handle Copy PNG Button
+        copyPngBtn.addEventListener('click', () => {
+            const svgContent = svgContainer.innerHTML;
+            if (!svgContent) return;
+
+            if (!navigator.clipboard || !window.ClipboardItem) {
+                showToast("Image copying is not supported in this browser/environment.");
+                return;
+            }
+
+            svgToCanvas(svgContent, (canvas) => {
+                canvas.toBlob(async (blob) => {
+                    try {
+                        const item = new ClipboardItem({ 'image/png': blob });
+                        await navigator.clipboard.write([item]);
+                        showToast("PNG Copied!");
+                    } catch (err) {
+                        console.error(err);
+                        showToast("Failed to copy PNG. You may need to click 'Download PNG' instead.");
+                    }
+                }, 'image/png');
+            });
+        });
+    </script>
+</body>
+</html>
